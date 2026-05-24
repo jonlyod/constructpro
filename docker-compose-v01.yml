@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: constructsaas_db
+    restart: always
+    environment:
+      POSTGRES_USER: jonlyod21
+      POSTGRES_PASSWORD: S#cret67201
+      POSTGRES_DB: constructsaas
+    volumes:
+      - /volume1/Docker/construct-saas/pgdata:/var/lib/postgresql/data
+    # Remove or comment out the ports section below:
+    # ports:
+    #   - "5432:5432"
+
+  api:
+    image: node:20-alpine
+    container_name: constructsaas_api
+    restart: always
+    working_dir: /app
+    volumes:
+      - /volume1/Docker/construct-saas/api:/app
+    command: node server.js
+    ports:
+      - "3001:3001"
+    environment:
+      DB_HOST: db
+      DB_USER: jonlyod21
+      DB_PASS: S#cret67201
+      DB_NAME: constructsaas
+      JWT_SECRET: S#cre67201
+    depends_on:
+      - db
+
+  frontend:
+    image: nginx:alpine
+    container_name: constructsaas_frontend
+    restart: always
+    volumes:
+      - /volume1/Docker/construct-saas/frontend:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"

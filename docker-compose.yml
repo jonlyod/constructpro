@@ -1,0 +1,82 @@
+services:
+
+  # ── 1. PostgreSQL Database ──────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: constructsaas_db
+    restart: always
+    environment:
+      POSTGRES_USER:     jonlyod21
+      POSTGRES_PASSWORD: "S#cret67201"
+      POSTGRES_DB:       constructsaas
+    volumes:
+      - /volume1/Docker/construct-saas/pgdata:/var/lib/postgresql/data
+    networks:
+      - saas_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jonlyod21 -d constructsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── 2. Node.js API ──────────────────────────────
+  api:
+    image: node:20-alpine
+    container_name: constructsaas_api
+    restart: always
+    working_dir: /app
+    volumes:
+      - /volume1/Docker/construct-saas/api:/app
+    command: sh -c "npm install --omit=dev && node server.js"
+    environment:
+      PORT:       3001
+      DB_HOST:    db
+      DB_USER:    jonlyod21
+      DB_PASS:    "S#cret67201"
+      DB_NAME:    constructsaas
+      JWT_SECRET: "S#cre67201_ConstructPro_JWT_2025"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - saas_net
+
+  # ── 3. Nginx Frontend ───────────────────────────
+  # Serves index.html AND proxies /api/* → api:3001
+  # This means ONE tunnel URL works for BOTH frontend and API
+  frontend:
+    image: nginx:alpine
+    container_name: constructsaas_frontend
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - /volume1/Docker/construct-saas/frontend:/usr/share/nginx/html:ro
+      - /volume1/Docker/construct-saas/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    networks:
+      - saas_net
+
+  # ── 4. Cloudflare Tunnel ────────────────────────
+  # Exposes the frontend to the internet securely via saas_net.
+  # No port forwarding needed on your router.
+  # Get your token from:
+  #   one.dash.cloudflare.com → Networks → Tunnels
+  #   → your tunnel → Overview → copy token after --token
+  # In your Cloudflare tunnel config, set the service URL to:
+  #   http://frontend:80
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: constructsaas_tunnel
+    restart: always
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    depends_on:
+      - frontend
+    networks:
+      - saas_net
+
+networks:
+  saas_net:
+    driver: bridge
